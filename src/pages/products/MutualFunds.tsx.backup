@@ -1,0 +1,989 @@
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import Button from '../../components/ui/Button';
+import ContactModal from '../../components/ContactModal';
+import MutualFundsImage from '../../assets/MutualFunds.jpeg';
+import { fetchFundCategories, fetchFundCategoryDetail, fetchFundCategoryDetailById } from '../../services/api';
+import type { FundCategory, FundCategoryDetail } from '../../services/api';
+
+const MutualFunds: React.FC = () => {
+    const [openFaqs, setOpenFaqs] = useState<{ [key: number]: boolean }>({});
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
+    const [fundCategories, setFundCategories] = useState<{ [key: string]: FundCategory[] }>({});
+    const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+    const [selectedCategoryDetail, setSelectedCategoryDetail] = useState<FundCategoryDetail | null>(null);
+    const [isLoadingCategoryDetail, setIsLoadingCategoryDetail] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        const loadFundCategories = async () => {
+            try {
+                setIsLoadingCategories(true);
+                const categories = await fetchFundCategories();
+
+                // Transform API response to group by main_category, keeping full category objects
+                const groupedCategories: { [key: string]: FundCategory[] } = {};
+                categories.forEach((category: FundCategory) => {
+                    if (!groupedCategories[category.main_category]) {
+                        groupedCategories[category.main_category] = [];
+                    }
+                    groupedCategories[category.main_category].push(category);
+                });
+
+                setFundCategories(groupedCategories);
+            } catch (error) {
+                console.error('Error loading fund categories:', error);
+                // Fallback to empty object on error
+                setFundCategories({});
+            } finally {
+                setIsLoadingCategories(false);
+            }
+        };
+
+        loadFundCategories();
+    }, []);
+
+    const handleCategoryClick = async (category: FundCategory) => {
+        // Try using category.id (UUID) first, fallback to sebi IDs
+        if (category.id) {
+            try {
+                setIsLoadingCategoryDetail(true);
+                const detail = await fetchFundCategoryDetailById(category.id);
+                if (detail) {
+                    setSelectedCategoryDetail(detail);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+            } catch (error) {
+                console.error('Error loading category detail by ID:', error);
+            } finally {
+                setIsLoadingCategoryDetail(false);
+            }
+        }
+
+        // Fallback to sebi IDs if UUID approach fails or not available
+        if (!category.sebi_category_id || !category.sebi_sub_category_id) {
+            console.warn('Category missing both ID and sebi IDs:', category);
+            return;
+        }
+
+        try {
+            setIsLoadingCategoryDetail(true);
+            const detail = await fetchFundCategoryDetail(
+                category.sebi_category_id,
+                category.sebi_sub_category_id
+            );
+            if (detail) {
+                setSelectedCategoryDetail(detail);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        } catch (error) {
+            console.error('Error loading category detail:', error);
+        } finally {
+            setIsLoadingCategoryDetail(false);
+        }
+    };
+
+    const toggleFaq = (index: number) => {
+        setOpenFaqs((prev) => ({
+            ...prev,
+            [index]: !prev[index],
+        }));
+    };
+
+    // Static default funds
+    const defaultTopFunds = [
+        {
+            name: 'EDELWEISS EQUITY SAVINGS FUND',
+            returns: {
+                '1 Year': '8.57%',
+                '2 Year': '10.04%',
+                '3 Year': '11.27%',
+                '5 Year': '9.32%',
+            },
+        },
+        {
+            name: 'MIRAE ASSET EQUITY SAVINGS FUND',
+            returns: {
+                '1 Year': '9.75%',
+                '2 Year': '9.4%',
+                '3 Year': '11.23%',
+                '5 Year': '10.1%',
+            },
+        },
+        {
+            name: '360 ONE QUANT FUND',
+            returns: {
+                '1 Year': '11.4%',
+                '2 Year': '13.03%',
+                '3 Year': '23.81%',
+                '5 Year': '0%',
+            },
+        },
+        {
+            name: 'HSBC EQUITY SAVINGS FUND - GROWTH',
+            returns: {
+                '1 Year': '4.66%',
+                '2 Year': '10.96%',
+                '3 Year': '13.35%',
+                '5 Year': '10.92%',
+            },
+        },
+        {
+            name: 'QUANT FOCUSED FUND',
+            returns: {
+                '1 Year': '3.28%',
+                '2 Year': '4.22%',
+                '3 Year': '13.05%',
+                '5 Year': '15.1%',
+            },
+        },
+    ];
+
+    // Transform API funds data to match component structure
+    const transformFundsData = () => {
+        if (!selectedCategoryDetail?.funds || selectedCategoryDetail.funds.length === 0) {
+            console.log('No funds in selectedCategoryDetail, returning empty array');
+            return [];
+        }
+
+        // Extract SchemeDataList from the first fund response
+        const fundResponse = selectedCategoryDetail.funds[0];
+        if (!fundResponse?.ObjectResponse?.SchemeDataList || fundResponse.ObjectResponse.SchemeDataList.length === 0) {
+            console.log('No SchemeDataList found in fund response, returning empty array');
+            return [];
+        }
+
+        const schemeDataList = fundResponse.ObjectResponse.SchemeDataList;
+        console.log('Transforming funds from API:', schemeDataList.length, 'schemes found');
+
+        // Transform scheme data to fund format
+        return schemeDataList.map((scheme: any) => {
+            const returns: { [key: string]: string } = {};
+
+            // Format returns if they exist and are valid numbers, otherwise set to empty string
+            if (scheme.OneYearReturn != null && !isNaN(scheme.OneYearReturn)) {
+                returns['1 Year'] = `${scheme.OneYearReturn.toFixed(2)}%`;
+            } else {
+                returns['1 Year'] = '';
+            }
+
+            if (scheme.TwoYearReturn != null && !isNaN(scheme.TwoYearReturn)) {
+                returns['2 Year'] = `${scheme.TwoYearReturn.toFixed(2)}%`;
+            } else {
+                returns['2 Year'] = '';
+            }
+
+            if (scheme.ThreeYearReturn != null && !isNaN(scheme.ThreeYearReturn)) {
+                returns['3 Year'] = `${scheme.ThreeYearReturn.toFixed(2)}%`;
+            } else {
+                returns['3 Year'] = '';
+            }
+
+            if (scheme.FiveYearReturn != null && !isNaN(scheme.FiveYearReturn)) {
+                returns['5 Year'] = `${scheme.FiveYearReturn.toFixed(2)}%`;
+            } else {
+                returns['5 Year'] = '';
+            }
+
+            return {
+                name: scheme.SchemeName || '',
+                returns: returns,
+                investURL: scheme.InvestURL || 'https://app.nivesh.com',
+            };
+        }).filter((fund: any) => fund.name); // Filter out any invalid entries
+    };
+
+    // Use dynamic funds if available, otherwise use static
+    const transformedFunds = transformFundsData();
+    const topFunds = transformedFunds.length > 0 ? transformedFunds : defaultTopFunds;
+
+    // Debug: Log which data source is being used
+    console.log('Funds data source:', transformedFunds.length > 0 ? 'DYNAMIC (API)' : 'STATIC (default)', {
+        selectedCategory: selectedCategoryDetail?.sub_category,
+        transformedFundsCount: transformedFunds.length,
+        defaultFundsCount: defaultTopFunds.length,
+        topFundsCount: topFunds.length
+    });
+
+
+    // Default static features
+    const defaultFeatures = [
+        {
+            title: 'Financial Goal',
+            description: 'There are various and different types of Mutual Fund schemes which can be selected based on your financial goals.',
+            icon: (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            ),
+        },
+        {
+            title: 'Diversification of Portfolio',
+            description: 'Spreading your investments over different asset classes is called diversification of the portfolio. It helps in minimising the risk factors associated with different investments.',
+            icon: (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+            ),
+        },
+        {
+            title: 'Liquidity',
+            description: 'Purchasing Mutual Funds is a hassle free task. Liquification of the best Mutual Funds is also quick as all the top Mutual Funds have instant redemption available and funds are available in T+2 days.',
+            icon: (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 8c2.5 0 2.5 4 5 4s2.5-4 5-4 2.5 4 5 4 2.5-4 5-4M2 16c2.5 0 2.5 4 5 4s2.5-4 5-4 2.5 4 5 4 2.5-4 5-4" />
+                </svg>
+            ),
+        },
+        {
+            title: 'Return on Investment',
+            description: 'For investors looking to beat inflation and increase their returns, investing in Mutual Funds is an advantageous option.',
+            icon: (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            ),
+        },
+        {
+            title: 'Risk',
+            description: 'Mutual Funds are subject to market risks. That being said, Mutual Funds are handled by professional fund managers and they manage the monies invested in the best Mutual Funds. Fund managers are experts in their fields of investment which helps in reducing the risk associated with investments.',
+            icon: (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            ),
+        },
+        {
+            title: 'Easy Process',
+            description: 'Investing in top-performing Mutual Funds is a simple process. It can be done online or offline. Most funds and distributors need only KYC documents and you can start investing.',
+            icon: (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                </svg>
+            ),
+        },
+        {
+            title: 'Regulated',
+            description: 'Securities and Exchange Board of India (SEBI) regulates the capital market. Mutual Funds also need to abide by the rules and regulations as laid down by SEBI.',
+            icon: (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+            ),
+        },
+    ];
+
+    // Helper function to get icon for feature
+    const getFeatureIcon = (index: number) => {
+        const icons = [
+            <svg key={0} className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>,
+            <svg key={1} className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>,
+            <svg key={2} className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 8c2.5 0 2.5 4 5 4s2.5-4 5-4 2.5 4 5 4 2.5-4 5-4M2 16c2.5 0 2.5 4 5 4s2.5-4 5-4 2.5 4 5 4 2.5-4 5-4" />
+            </svg>,
+            <svg key={3} className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>,
+            <svg key={4} className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>,
+            <svg key={5} className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+            </svg>,
+            <svg key={6} className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>,
+        ];
+        return icons[index % icons.length];
+    };
+
+    // Transform API features to match component structure
+    const dynamicFeatures = selectedCategoryDetail?.features?.map((feature, index) => ({
+        title: feature.title,
+        description: feature.description,
+        icon: getFeatureIcon(index),
+    })) || [];
+
+    // Use dynamic features if available, otherwise use static
+    const features = dynamicFeatures.length > 0 ? dynamicFeatures : defaultFeatures;
+
+    const nextFeatures = () => {
+        setCurrentFeatureIndex((prev) => {
+            const itemsPerView = isMobile ? 1 : 2;
+            const maxIndex = Math.max(0, features.length - itemsPerView);
+            const next = prev + itemsPerView;
+            return next > maxIndex ? 0 : next;
+        });
+    };
+
+    const prevFeatures = () => {
+        setCurrentFeatureIndex((prev) => {
+            const itemsPerView = isMobile ? 1 : 2;
+            const maxIndex = Math.max(0, features.length - itemsPerView);
+            const next = prev - itemsPerView;
+            return next < 0 ? maxIndex : next;
+        });
+    };
+
+    // Default static FAQs
+    const defaultFaqs = [
+        {
+            question: 'How Long Should I Stay Invested in Equity Savings Mutual Funds?',
+            answer: 'Since these funds invest in debt, equity and take advantage of arbitrage opportunities the ideal investment horizon for an investor would be 2-3 years.',
+        },
+        {
+            question: 'What Kind of Returns can I Earn from Equity Savings Mutual Funds?',
+            answer: 'Equity Savings Fund earn from fixed interest rate on debt security, dividend and appreciation benefits from equity and price differentials from arbitrage. Since arbitrage is entered into only when there is a profitable gap between market prices of securities in the two markets, the only uncertainity is from of pure equity investments. The returns generated by these funds are highers than pure debt funds since they gain from equity as well. However, they are not as profitable as pure equity funds since equity exposure is limited.',
+        },
+        {
+            question: 'Where do Equity Savings Mutual Funds Invest?',
+            answer: 'Equity Savings Mutual Funds can invest 65-90% in equity and equity-related instruments including arbitrage opportunities that are taken advantage of and 10-35% in debt under normal market conditions. However it must be noted that under defensive market conditions allocations towards hedged or arbitrage opportunities can increase.',
+        },
+        {
+            question: 'What is the taxation on Equity Savings Mutual Funds?',
+            answer: 'Short-term capital gains (where units are sold within a year of purchase) are taxed at 15%, while long-term capital gains (sold after 1 year) are taxed at 10%. Gains up to Rs.1 Lakh are exempt from taxation in the long-term, gains above that will be taxed at the applicable rate of 10%.',
+        },
+    ];
+
+    // Use dynamic FAQs when a category is selected, otherwise use default FAQs
+    // If category is selected but has no FAQs, show empty array (will display message)
+    const faqs = selectedCategoryDetail
+        ? (selectedCategoryDetail.faqs || [])
+        : defaultFaqs;
+
+    return (
+        <div className="min-h-screen bg-white">
+            {/* Hero Section */}
+            <section className="relative pt-16 md:pt-20 lg:pt-24 pb-12 md:pb-16 lg:pb-24 overflow-hidden bg-white">
+                <div className="container-custom px-4 md:px-6 relative z-10">
+                    {/* Breadcrumbs */}
+                    <nav className="flex items-center flex-wrap space-x-2 text-xs md:text-sm mb-4 md:mb-6">
+                        <Link to="/" className="text-primary hover:text-primary-dark transition-colors">
+                            Home
+                        </Link>
+                        {selectedCategoryDetail ? (
+                            <>
+                                <span className="text-neutral-400">/</span>
+                                <span className="text-neutral-500 line-clamp-1">{selectedCategoryDetail.main_category}</span>
+                                <span className="text-neutral-400">/</span>
+                                <span className="text-neutral-500 line-clamp-1">{selectedCategoryDetail.sub_category}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-neutral-400">/</span>
+                                <span className="text-neutral-500">Mutual Funds</span>
+                            </>
+                        )}
+                    </nav>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 lg:gap-12 items-start">
+                        {/* Left Column - Content */}
+                        <div className="relative z-10">
+                            <h2 className="md:hidden text-2xl sm:text-3xl font-bold text-[#243062] mb-3 leading-tight">
+                                {selectedCategoryDetail
+                                    ? `${selectedCategoryDetail.sub_category} - ${selectedCategoryDetail.main_category}`
+                                    : 'Best Mutual Funds in India'
+                                }
+                            </h2>
+                            <h1 className="hidden md:block text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold text-[#243062] mb-3 md:mb-4 leading-tight">
+                                {selectedCategoryDetail
+                                    ? `${selectedCategoryDetail.sub_category} - ${selectedCategoryDetail.main_category}`
+                                    : 'Best Mutual Funds in India'
+                                }
+                            </h1>
+
+                            <p className="text-sm sm:text-base md:text-lg text-neutral-700 mb-4 md:mb-6 lg:mb-8 leading-relaxed">
+                                {selectedCategoryDetail?.page_content?.description
+                                    ? selectedCategoryDetail.page_content.description
+                                    : 'Saving for a financial future includes investing. Apart from Bank Fixed Deposits and Equities, Mutual Funds are considered to be one of the sought-after investment options. Before investing, understanding relevant performance factors will help you select the best Mutual Funds suited to you.'
+                                }
+                            </p>
+
+                            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                                <Button
+                                    variant="primary"
+                                    size="lg"
+                                    onClick={() => setIsModalOpen(true)}
+                                    className="bg-[#243062] hover:bg-[#1a2550] text-white px-6 md:px-8 py-3 md:py-4 rounded-lg text-sm md:text-base lg:text-lg font-semibold shadow-lg hover:shadow-xl transition-all w-full sm:w-auto"
+                                >
+                                    I am Interested
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Right Column - Image */}
+                        <div className="relative z-10 mt-4 lg:mt-0">
+                            <img
+                                src={selectedCategoryDetail?.page_content?.hero_image || MutualFundsImage}
+                                alt={selectedCategoryDetail?.page_content?.page_title || "Best Mutual Funds in India"}
+                                className="w-full h-[250px] sm:h-[300px] md:h-[350px] lg:h-[400px] object-contain"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Introduction Section */}
+            {selectedCategoryDetail?.page_content && (
+                <section className="py-8 md:py-12 lg:py-20 bg-primary/10">
+                    <div className="container-custom px-4 md:px-6">
+                        <div className="max-w-4xl mx-auto">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#243062] mb-4 md:mb-8 lg:mb-12 leading-tight">
+                                {selectedCategoryDetail.page_content.page_title || `About ${selectedCategoryDetail.sub_category}`}
+                            </h2>
+                            <p className="text-sm sm:text-base md:text-lg text-neutral-700 leading-relaxed">
+                                {selectedCategoryDetail.page_content.description}
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            )}
+            {!selectedCategoryDetail && (
+                <section className="py-8 md:py-12 lg:py-20 bg-primary/10">
+                    <div className="container-custom px-4 md:px-6">
+                        <div className="max-w-4xl mx-auto">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#243062] mb-4 md:mb-8 lg:mb-12 leading-tight">
+                                What are Equity Linked Savings Scheme in India?
+                            </h2>
+                            <p className="text-sm sm:text-base md:text-lg text-neutral-700 leading-relaxed">
+                                It is the kind of investment fund where the return is generated from arbitrage opportunity, equity, and debt. It is similar to a Balanced Hybrid Fund with an additional return from arbitrage activity, thus, giving higher returns.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {/* Main Content Section with Sidebar */}
+            <section className="py-8 md:py-12 lg:py-20 bg-white px-4 md:px-6">
+                <div className="container-custom">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 md:gap-8">
+                            {/* Left Column - Main Content */}
+                            <div className="min-w-0 space-y-8 md:space-y-12">
+                                {/* Top Performing Mutual Funds Section */}
+                                <div>
+                                    <h2 className="text-3xl md:text-4xl font-bold text-[#243062] mb-6 md:mb-8 leading-tight">
+                                        {selectedCategoryDetail
+                                            ? `Top Performing ${selectedCategoryDetail.sub_category}`
+                                            : 'Top Performing Mutual Funds'
+                                        }
+                                    </h2>
+                                    <div className="space-y-4">
+                                        {topFunds.length === 0 ? (
+                                            <div className="bg-white rounded-lg border-2 border-primary/20 shadow-sm p-8 text-center">
+                                                <p className="text-neutral-500">No funds available for this category.</p>
+                                            </div>
+                                        ) : (
+                                            topFunds.map((fund, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="bg-white rounded-lg border-2 border-primary/20 shadow-sm hover:shadow-md hover:border-primary/40 transition-all duration-300"
+                                                >
+                                                    <div className="bg-[#243062] px-3 md:px-4 lg:px-6 py-2.5 md:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                                                        <h3 className="text-sm md:text-base lg:text-lg font-bold text-white break-words">
+                                                            {fund.name}
+                                                        </h3>
+                                                        <Button
+                                                            variant="primary"
+                                                            size="sm"
+                                                            onClick={() => window.open((fund as any).investURL || 'https://app.nivesh.com', '_blank')}
+                                                            className="bg-green-600 hover:bg-green-700 text-white px-3 md:px-4 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold whitespace-nowrap w-full sm:w-auto"
+                                                        >
+                                                            Invest Now
+                                                        </Button>
+                                                    </div>
+                                                    <div className="grid grid-cols-4 gap-1 md:gap-2 lg:gap-4 p-3 md:p-4 bg-primary/5">
+                                                        <div className="text-center">
+                                                            <p className="text-xs md:text-sm text-neutral-600 mb-1">1 Year</p>
+                                                            <p className="text-base md:text-lg font-bold text-primary">
+                                                                {fund.returns?.['1 Year'] || '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-xs md:text-sm text-neutral-600 mb-1">2 Year</p>
+                                                            <p className="text-base md:text-lg font-bold text-primary">
+                                                                {fund.returns?.['2 Year'] || '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-xs md:text-sm text-neutral-600 mb-1">3 Year</p>
+                                                            <p className="text-base md:text-lg font-bold text-primary">
+                                                                {fund.returns?.['3 Year'] || '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-xs md:text-sm text-neutral-600 mb-1">5 Year</p>
+                                                            <p className="text-base md:text-lg font-bold text-primary">
+                                                                {fund.returns?.['5 Year'] || '-'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Where do Mutual Funds Invest Section */}
+                                <div>
+                                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#243062] mb-4 md:mb-6 lg:mb-8 leading-tight">
+                                        Where do Mutual Funds Invest?
+                                    </h2>
+                                    <div className="bg-white rounded-xl p-4 sm:p-6 md:p-8 border-2 border-primary/20 shadow-sm">
+                                        <ul className="space-y-3 md:space-y-4 text-sm sm:text-base md:text-lg text-neutral-700 mb-4 md:mb-6">
+                                            <li className="flex items-start gap-2 md:gap-3">
+                                                <span className="text-primary mt-1 font-bold flex-shrink-0">•</span>
+                                                <span><strong>Equities or stocks:</strong> Wealth creation, high returns for long-term.</span>
+                                            </li>
+                                            <li className="flex items-start gap-2 md:gap-3">
+                                                <span className="text-primary mt-1 font-bold flex-shrink-0">•</span>
+                                                <span><strong>Income Bonds or Fixed Income Funds:</strong> Income generation, safer, debt market instruments like Bonds, Commercial Papers, Gold.</span>
+                                            </li>
+                                            <li className="flex items-start gap-2 md:gap-3">
+                                                <span className="text-primary mt-1 font-bold flex-shrink-0">•</span>
+                                                <span><strong>Tax Savings:</strong> Equity Linked Savings Scheme - ELSS, 3-year lock-in, 80C tax exemption.</span>
+                                            </li>
+                                        </ul>
+                                        <Button
+                                            variant="primary"
+                                            size="md"
+                                            onClick={() => window.open('https://app.nivesh.com', '_blank')}
+                                            className="bg-[#243062] hover:bg-[#1a2550] text-white px-5 md:px-6 py-2 md:py-2.5 rounded-lg text-sm md:text-base font-semibold w-full sm:w-auto"
+                                        >
+                                            Invest Now
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Features & Benefits of Mutual Funds Section */}
+                                <div>
+                                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#243062] mb-4 md:mb-6 lg:mb-8 leading-tight">
+                                        Features & Benefits of Mutual Funds
+                                    </h2>
+                                    <div className="relative">
+                                        {/* Carousel Container */}
+                                        <div className="overflow-hidden">
+                                            <div
+                                                className="flex transition-transform duration-500 ease-in-out"
+                                                style={{
+                                                    transform: `translateX(-${currentFeatureIndex * (isMobile ? 100 : 50)}%)`
+                                                }}
+                                            >
+                                                {features.map((feature, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="w-full sm:w-1/2 flex-shrink-0 px-2 sm:px-3"
+                                                    >
+                                                        <div className="bg-white rounded-xl p-4 sm:p-6 border-2 border-primary/20 shadow-sm hover:shadow-lg hover:border-primary/40 transition-all duration-300 h-full">
+                                                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                                                                {feature.icon}
+                                                            </div>
+                                                            <h3 className="text-lg sm:text-xl font-bold text-[#243062] mb-2 sm:mb-3">
+                                                                {feature.title}
+                                                            </h3>
+                                                            <p className="text-sm sm:text-base text-neutral-700 leading-relaxed">
+                                                                {feature.description}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Navigation Buttons */}
+                                        <div className="flex justify-center items-center gap-4 mt-6">
+                                            <button
+                                                onClick={prevFeatures}
+                                                disabled={currentFeatureIndex === 0}
+                                                className={`p-2 rounded-full border-2 border-primary/20 transition-all duration-200 ${currentFeatureIndex === 0
+                                                    ? 'opacity-50 cursor-not-allowed'
+                                                    : 'hover:bg-primary/10 hover:border-primary/40 cursor-pointer'
+                                                    }`}
+                                                aria-label="Previous features"
+                                            >
+                                                <svg className="w-6 h-6 text-[#243062]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                                </svg>
+                                            </button>
+
+                                            {/* Dots Indicator */}
+                                            <div className="flex gap-2">
+                                                {Array.from({ length: Math.ceil(features.length / (isMobile ? 1 : 2)) }).map((_, index) => {
+                                                    const pageIndex = index * (isMobile ? 1 : 2);
+                                                    const isActive = currentFeatureIndex === pageIndex;
+                                                    return (
+                                                        <button
+                                                            key={index}
+                                                            onClick={() => setCurrentFeatureIndex(pageIndex)}
+                                                            className={`h-2 rounded-full transition-all duration-200 ${isActive
+                                                                ? 'bg-[#243062] w-8'
+                                                                : 'bg-primary/30 hover:bg-primary/50 w-2'
+                                                                }`}
+                                                            aria-label={`Go to slide ${index + 1}`}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <button
+                                                onClick={nextFeatures}
+                                                disabled={currentFeatureIndex >= Math.max(0, features.length - (isMobile ? 1 : 2))}
+                                                className={`p-2 rounded-full border-2 border-primary/20 transition-all duration-200 ${currentFeatureIndex >= Math.max(0, features.length - (isMobile ? 1 : 2))
+                                                    ? 'opacity-50 cursor-not-allowed'
+                                                    : 'hover:bg-primary/10 hover:border-primary/40 cursor-pointer'
+                                                    }`}
+                                                aria-label="Next features"
+                                            >
+                                                <svg className="w-6 h-6 text-[#243062]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right Column - Fund Categories Sidebar */}
+                            <div className="lg:sticky lg:top-6 lg:h-fit min-w-0">
+                                <div className="bg-white rounded-xl p-2 md:p-4 border-2 border-primary/20 shadow-sm">
+                                    <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-primary/20">
+                                        <h3 className="text-lg md:text-xl font-bold text-[#243062]">
+                                            Fund Categories
+                                        </h3>
+                                        {selectedCategoryDetail && (
+                                            <button
+                                                onClick={() => setSelectedCategoryDetail(null)}
+                                                className="text-xs text-primary hover:text-primary-dark transition-colors"
+                                                title="Clear selection"
+                                            >
+                                                Clear
+                                            </button>
+                                        )}
+                                    </div>
+                                    {isLoadingCategories ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                        </div>
+                                    ) : Object.keys(fundCategories).length === 0 ? (
+                                        <div className="text-center py-8 text-sm text-neutral-500">
+                                            No categories available
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-0">
+                                            {Object.entries(fundCategories).map(([category, categoryList], categoryIndex) => (
+                                                <div key={categoryIndex} className={categoryIndex > 0 ? 'mt-4' : ''}>
+                                                    <h4 className="text-sm md:text-base font-bold text-[#243062] mb-2">
+                                                        {category}
+                                                    </h4>
+                                                    <div className="space-y-0">
+                                                        {categoryList.map((categoryItem, fundIndex) => (
+                                                            <button
+                                                                key={fundIndex}
+                                                                onClick={() => handleCategoryClick(categoryItem)}
+                                                                disabled={isLoadingCategoryDetail || !categoryItem.sebi_category_id || !categoryItem.sebi_sub_category_id}
+                                                                className={`w-full text-left px-3 py-2.5 text-xs md:text-sm text-neutral-700 hover:bg-blue-100 hover:text-[#243062] transition-all duration-200 border-b border-neutral-200 last:border-b-0 group rounded-sm hover:shadow-sm ${selectedCategoryDetail?.id === categoryItem.id
+                                                                    ? 'bg-blue-50 text-[#243062]'
+                                                                    : ''
+                                                                    } ${isLoadingCategoryDetail || !categoryItem.sebi_category_id || !categoryItem.sebi_sub_category_id
+                                                                        ? 'opacity-50 cursor-not-allowed'
+                                                                        : 'cursor-pointer'
+                                                                    }`}
+                                                            >
+                                                                <span className="block">{categoryItem.sub_category}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {isLoadingCategoryDetail && (
+                                        <div className="flex items-center justify-center py-4 mt-4 border-t border-neutral-200">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* How to Invest Section */}
+            <section className="py-8 md:py-12 lg:py-20 bg-white">
+                <div className="container-custom px-4 md:px-6">
+                    <div className="max-w-4xl mx-auto">
+                        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#243062] mb-4 md:mb-8 lg:mb-12 text-center leading-tight">
+                            How to Invest in an Equity Savings Mutual Fund with Nivesh?
+                        </h2>
+                        <p className="text-sm sm:text-base md:text-lg text-neutral-700 mb-6 md:mb-8 text-center leading-relaxed">
+                            Any investor can enjoy the benefits of investing through Nivesh in the following easy steps:
+                        </p>
+                        <div className="space-y-4 md:space-y-6">
+                            {[
+                                {
+                                    step: 'Step 1:',
+                                    description: 'Create an account in Nivesh by providing your basic KYC details. (If you already have an account then just login into your account)',
+                                },
+                                {
+                                    step: 'Step 2:',
+                                    description: 'On your portfolio page click on the Buy New tab at the right top corner of the screen. Select the category and choose the funds you want to purchase. If you already know the name of the fund to buy, then you can search the particular fund through Quick Order.',
+                                },
+                                {
+                                    step: 'Step 3:',
+                                    description: 'Select the category and choose the funds you want to purchase.',
+                                },
+                                {
+                                    step: 'Step 4:',
+                                    description: 'If you already know the name of the fund to buy, then you can search the particular fund through Quick Order.',
+                                },
+                                {
+                                    step: 'Step 5:',
+                                    description: 'Fill the transaction details and confirm. You can place up to 5 orders in one go.',
+                                },
+                                {
+                                    step: 'Step 6:',
+                                    description: 'You can make payment through your registered account through UPI, Direct Pay, or NEFT/ RTGS, Bank Mandate or Cheque. For same-day NAV, select UPI, Direct Pay or NEFT / RTGS as other payment options may take a few days to clear, Nodal account takes about 1-2 days to clear payment from the approved mandate and cheque takes about 2-5 days in clearing due to which you will not get the same-day NAV.',
+                                },
+                            ].map((item, index) => (
+                                <div
+                                    key={index}
+                                    className="bg-white rounded-xl p-4 sm:p-6 md:p-8 border-2 border-primary/20 shadow-sm hover:shadow-lg hover:border-primary/40 transition-all duration-300"
+                                >
+                                    <div className="flex items-start gap-3 md:gap-4">
+                                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center flex-shrink-0 font-bold text-base sm:text-lg">
+                                            {index + 1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#243062] mb-2">
+                                                {item.step}
+                                            </h3>
+                                            <p className="text-sm sm:text-base md:text-lg text-neutral-700 leading-relaxed">
+                                                {item.description}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Why Should One Invest Section */}
+            <section className="py-8 md:py-12 lg:py-20 bg-primary/10">
+                <div className="container-custom px-4 md:px-6">
+                    <div className="max-w-4xl mx-auto">
+                        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#243062] mb-6 md:mb-8 lg:mb-12 text-center leading-tight">
+                            {selectedCategoryDetail?.benefits && selectedCategoryDetail.benefits.length > 0
+                                ? selectedCategoryDetail.benefits[0].title
+                                : 'Why Should One Invest in Equity Savings Fund?'
+                            }
+                        </h2>
+                        <div className="space-y-4 md:space-y-6">
+                            {selectedCategoryDetail?.benefits && selectedCategoryDetail.benefits.length > 0 ? (
+                                selectedCategoryDetail.benefits.map((benefit, index) => (
+                                    <div
+                                        key={benefit.id || index}
+                                        className="bg-white rounded-xl p-4 sm:p-6 md:p-8 border-2 border-primary/20 shadow-sm"
+                                    >
+                                        {/* <h3 className="text-xl md:text-2xl font-bold text-[#243062] mb-4">
+                                            {benefit.title}
+                                        </h3> */}
+                                        <p className="text-sm sm:text-base md:text-lg text-neutral-700 leading-relaxed whitespace-pre-line">
+                                            {benefit.description}
+                                        </p>
+                                    </div>
+                                ))
+                            ) : (
+                                [
+                                    {
+                                        title: 'Portfolio Diversification',
+                                        description: 'Through a single investment channel, top equity savings funds provide a wide investment portfolio. Thus, there is no need for investors to compare the performance of many funds to choose which one is most suited to their needs.',
+                                    },
+                                    {
+                                        title: 'Advantage of Arbitrage',
+                                        description: 'When it comes to stable and consistent returns, the arbitrage portion offers the best advantage. The majority of fund firms are well-versed in arbitrage, which allows for low-risk profits. As a result, these funds are an excellent choice for investors seeking consistent returns.',
+                                    },
+                                    {
+                                        title: 'Stable Return',
+                                        description: 'As mentioned above, equity savings funds offer stable returns, which means no major risk, and thus, it is a safe option for many investors. The investors only have to invest in the best returning equity savings fund.',
+                                    },
+                                ].map((reason, index) => (
+                                    <div
+                                        key={index}
+                                        className="bg-white rounded-xl p-4 sm:p-6 md:p-8 border-2 border-primary/20 shadow-sm"
+                                    >
+                                        <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-[#243062] mb-3 md:mb-4">
+                                            {reason.title}
+                                        </h3>
+                                        <p className="text-sm sm:text-base md:text-lg text-neutral-700 leading-relaxed">
+                                            {reason.description}
+                                        </p>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Who Should Invest Section */}
+            <section className="py-8 md:py-12 lg:py-20 bg-white">
+                <div className="container-custom px-4 md:px-6">
+                    <div className="max-w-4xl mx-auto">
+                        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#243062] mb-6 md:mb-8 lg:mb-12 text-center leading-tight">
+                            {selectedCategoryDetail?.suitability?.title || 'Who Should Invest in Equity Savings Mutual Funds?'}
+                        </h2>
+                        <div className="bg-white rounded-xl p-4 sm:p-6 md:p-8 border-2 border-primary/20 shadow-sm">
+                            <p className="text-sm sm:text-base md:text-lg text-neutral-700 leading-relaxed">
+                                {selectedCategoryDetail?.suitability?.description || 'When it comes to investment, risk is one of the biggest consideration for many investors. Equity Saving Funds are perfect for those investors who want to earn a good return with less risk. Many conservative investors, who used to prefer the bank\'s fixed deposit form of investment due to security, will most likely prefer Equity Saving Funds.'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Statistics Section */}
+            <section className="py-8 md:py-12 lg:py-20 bg-gradient-to-br from-primary/10 via-white to-primary/5">
+                <div className="container-custom px-4 md:px-6">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
+                            {[
+                                { value: '9,186', label: 'Partners in 776 cities across India' },
+                                { value: '58,847', label: 'Customers spread over 3,000 pincodes' },
+                                { value: '49,10,298', label: 'Transactions Executed' },
+                                { value: 'Rs. 6,523', label: 'Crore- Transaction Value' },
+                            ].map((stat, index) => (
+                                <div
+                                    key={index}
+                                    className="bg-white rounded-xl p-4 md:p-6 text-center border-2 border-primary/20 shadow-sm hover:shadow-lg hover:border-primary/40 transition-all duration-300"
+                                >
+                                    <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-primary mb-1 md:mb-2">
+                                        {stat.value}
+                                    </p>
+                                    <p className="text-xs sm:text-sm md:text-base text-neutral-700 leading-tight">
+                                        {stat.label}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* FAQ Section */}
+            <section className="py-8 md:py-12 lg:py-20 bg-neutral-50">
+                <div className="container-custom px-4 md:px-6">
+                    <div className="max-w-4xl mx-auto">
+                        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#243062] mb-8 md:mb-12 lg:mb-16 text-center leading-tight">
+                            Frequently Asked Questions (FAQs)
+                        </h2>
+                        {faqs.length === 0 ? (
+                            <div className="bg-white rounded-xl shadow-sm border-2 border-primary/20 p-8 text-center">
+                                <p className="text-neutral-500 text-base md:text-lg">
+                                    {selectedCategoryDetail
+                                        ? `No FAQs available for ${selectedCategoryDetail.sub_category} yet.`
+                                        : 'No FAQs available at the moment.'
+                                    }
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3 md:space-y-4 lg:space-y-5">
+                                {faqs.map((faq, index) => (
+                                    <div
+                                        key={index}
+                                        className="bg-white rounded-xl shadow-sm border-2 border-primary/20 overflow-hidden hover:border-primary/40 transition-all duration-300"
+                                    >
+                                        <button
+                                            onClick={() => toggleFaq(index)}
+                                            className="w-full flex items-center justify-between p-4 md:p-5 lg:p-6 text-left bg-transparent border-none outline-none cursor-pointer hover:bg-neutral-50 transition-colors duration-200"
+                                        >
+                                            <h5 className="text-sm sm:text-base md:text-lg font-bold text-[#243062] pr-3 md:pr-4 flex-1">
+                                                {index + 1}. {faq.question}
+                                            </h5>
+                                            <svg
+                                                className={`w-5 h-5 text-primary flex-shrink-0 transition-transform duration-300 ${openFaqs[index] ? 'rotate-180' : ''
+                                                    }`}
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                        {openFaqs[index] && (
+                                            <div className="px-4 md:px-5 lg:px-6 pb-4 md:pb-5 lg:pb-6 pt-0">
+                                                <p className="text-xs sm:text-sm md:text-base text-neutral-700 leading-relaxed whitespace-pre-line">
+                                                    {faq.answer}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Call to Action Section */}
+            <section className="py-8 md:py-12 lg:py-20 bg-white">
+                <div className="container-custom px-4 md:px-6">
+                    <div className="max-w-4xl mx-auto">
+                        <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl p-6 sm:p-8 md:p-12 border-2 border-primary/20 text-center">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#243062] mb-4 md:mb-6 leading-tight">
+                                Ready to Start Investing in Equity Savings Funds?
+                            </h2>
+                            <p className="text-sm sm:text-base md:text-lg text-neutral-700 mb-6 md:mb-8 leading-relaxed">
+                                Join thousands of investors who trust Nivesh for their mutual fund investments. Get started today with our seamless platform.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
+                                <Button
+                                    variant="primary"
+                                    size="lg"
+                                    onClick={() => window.open('https://app.nivesh.com', '_blank')}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-6 md:px-8 py-3 md:py-4 rounded-lg text-sm md:text-base lg:text-lg font-semibold w-full sm:w-auto"
+                                >
+                                    Get Started
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="lg"
+                                    onClick={() => window.open('https://app.nivesh.com', '_blank')}
+                                    className="!border-2 !border-[#243062] !text-[#243062] hover:!bg-[#243062] hover:!text-white px-6 md:px-8 py-3 md:py-4 rounded-lg text-sm md:text-base lg:text-lg font-semibold w-full sm:w-auto"
+                                >
+                                    Learn More
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Contact Modal */}
+            <ContactModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+        </div>
+    );
+};
+
+export default MutualFunds;
+
+

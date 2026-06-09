@@ -1,0 +1,253 @@
+/* Tailwind CSS v4 import */
+@import "tailwindcss";
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+/* Theme Configuration */
+@theme {
+  /* Colors */
+  --color-primary: #E63946;
+  --color-primary-dark: #D62828;
+  --color-neutral-50: #F9FAFB;
+  --color-neutral-100: #F3F4F6;
+  --color-neutral-200: #E5E7EB;
+  --color-neutral-300: #D1D5DB;
+  --color-neutral-400: #9CA3AF;
+  --color-neutral-500: #6B7280;
+  --color-neutral-600: #4B5563;
+  --color-neutral-700: #374151;
+  --color-neutral-800: #1F2937;
+  --color-neutral-900: #111827;
+
+  /* Font Families */
+  --font-family-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-family-serif: 'Playfair Display', serif;
+
+  /* Spacing */
+  --spacing-container: 1.5rem;
+}
+
+/* Base Styles */
+body {
+  font-family: var(--font-family-sans);
+  color: var(--color-neutral-900);
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 3rem;
+}
+
+h2 {
+  font-size: 2.25rem;
+}
+
+h3 {
+  font-size: 1.875rem;
+}
+
+/* Custom Container */
+.container-custom {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding-left: var(--spacing-container);
+  padding-right: var(--spacing-container);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Animations */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Blog Content Styles */
+.blog-content h2 {
+    color: #1e2a5e;
+    font-weight: 500;
+    line-height: 44px;
+    margin: 32px 0 16px 0;
+    font-size: 36px;
+    padding: 0;
+}
+
+.blog-content h3 {
+    color: #1e2a5e;
+    font-weight: 500;
+    margin: 24px 0 12px 0;
+    font-size: 28px;
+}
+
+.blog-content p {
+    margin-block: 0 0.9rem;
+    line-height: 1.6;
+}
+
+.blog-content ol,
+.blog-content ul {
+    margin: 16px 0;
+    padding-left: 24px;
+}
+
+.blog-content li {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.blog-content strong {
+    font-weight: bolder;
+}
+
+.blog-content a {
+    color: #E63946;
+    text-decoration: underline;
+}
+
+.blog-content a:hover {
+    color: #D62828;
+}
+
+@keyframes slide-in-right {
+    from {
+        transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out forwards;
+  opacity: 0;
+}
+
+.animation-delay-200 {
+  animation-delay: 0.2s;
+}
+
+.animation-delay-300 {
+  animation-delay: 0.3s;
+}
+
+.animation-delay-400 {
+  animation-delay: 0.4s;
+}
+
+.animation-delay-500 {
+  animation-delay: 0.5s;
+}
+
+.animation-delay-600 {
+  animation-delay: 0.6s;
+}
+
+@keyframes scroll-horizontal {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll-horizontal {
+  animation: scroll-horizontal 20s linear infinite;
+  display: flex;
+  width: fit-content;
+}
+
+/* Pre-owned Policies – Why Consider carousel (white arrows/dots on dark blue) */
+.preowned-why-carousel .slick-prev,
+.preowned-why-carousel .slick-next {
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+}
+.preowned-why-carousel .slick-prev:before,
+.preowned-why-carousel .slick-next:before {
+  color: #E63946;
+  font-size: 40px;
+  opacity: 1;
+}
+.preowned-why-carousel .slick-prev {
+  left: -8px;
+}
+.preowned-why-carousel .slick-next {
+  right: -8px;
+}
+.preowned-why-carousel .slick-dots li button:before {
+  color: #E63946;
+  opacity: 0.5;
+}
+.preowned-why-carousel .slick-dots li.slick-active button:before {
+  color: #E63946;
+  opacity: 1;
+}
+.preowned-why-carousel .slick-dots {
+  bottom: -40px;
+}

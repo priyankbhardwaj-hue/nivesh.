@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/Favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nivesh</title>
+    
+    <!-- Tawk.to Custom Styling -->
+    <style>
+      /* Custom styling for Tawk.to widget */
+      #tawkchat-container iframe {
+        z-index: 9999 !important;
+      }
+      
+      /* Ensure the widget button is visible */
+      #tawkchat-status-text-container {
+        z-index: 9998 !important;
+      }
+
+      /* Hide default Google Translate dropdown - we use custom Eng/Hindi button */
+      #google_translate_element {
+        position: absolute !important;
+        left: -9999px !important;
+        top: 0 !important;
+        width: 1px !important;
+        height: 1px !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      .skiptranslate iframe {
+        display: none !important;
+      }
+    </style>
+    
+    <!--Start of Tawk.to Script-->
+    <script type="text/javascript">
+      var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
+      (function () {
+        var s1 = document.createElement("script"), s0 = document.getElementsByTagName("script")[0];
+        s1.async = true;
+        s1.src = 'https://embed.tawk.to/624d8749c72df874911d588e/1fvvdgtu2';
+        s1.charset = 'UTF-8';
+        s1.setAttribute('crossorigin', '*');
+        s0.parentNode.insertBefore(s1, s0);
+      })();
+      
+      // Configure Tawk.to to show form when chat is opened
+      Tawk_API.onLoad = function() {
+        // Customize the widget appearance
+        Tawk_API.setAttributes({
+          'hideOnMobile': false,
+          'hideOnDesktop': false
+        }, function(error){});
+        
+        // Ensure the widget is ready
+        console.log('Tawk.to widget loaded');
+      };
+      
+      // When chat widget is opened, ensure form is displayed
+      Tawk_API.onChatStarted = function() {
+        // The pre-chat form should be configured in Tawk.to dashboard
+        // This ensures the widget opens properly and shows the form
+        console.log('Chat started - form should be visible');
+      };
+      
+      // When chat widget is minimized/closed
+      Tawk_API.onChatMinimized = function() {
+        // Handle minimize if needed
+      };
+      
+      // When chat widget is maximized
+      Tawk_API.onChatMaximized = function() {
+      };
+      
+      // Handle widget ready state
+      Tawk_API.visitor = {
+        name: '',
+        email: ''
+      };
+    </script>
+    <!--End of Tawk.to Script-->
+    
+    <!-- Suppress Tawk CORS errors for performance logging -->
+    <script type="text/javascript">
+      // Suppress CORS errors from Tawk's performance logging endpoint (va.tawk.to)
+      // This prevents console errors while still allowing Tawk functionality
+      (function() {
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        // Create a proxy to suppress specific CORS errors
+        console.error = function(...args) {
+          // Check if this is the Tawk CORS error
+          const errorString = args.map(arg => {
+            if (typeof arg === 'string') return arg;
+            if (typeof arg === 'object' && arg.message) return arg.message;
+            return String(arg);
+          }).join(' ');
+          
+          // Suppress Tawk va.tawk.to CORS errors specifically
+          if (errorString.includes('va.tawk.to') || errorString.includes('log-performance')) {
+            // Silently suppress this error
+            return;
+          }
+          
+          // Call original error for other messages
+          return originalError.apply(console, args);
+        };
+        
+        console.warn = function(...args) {
+          const warnString = args.map(arg => {
+            if (typeof arg === 'string') return arg;
+            if (typeof arg === 'object' && arg.message) return arg.message;
+            return String(arg);
+          }).join(' ');
+          
+          // Suppress Tawk CORS warnings
+          if (warnString.includes('va.tawk.to') || warnString.includes('log-performance')) {
+            return;
+          }
+          
+          return originalWarn.apply(console, args);
+        };
+        
+        // Also suppress unhandledrejection for Tawk CORS failures
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && typeof event.reason === 'object') {
+            const message = event.reason.message || '';
+            if (message.includes('va.tawk.to') || message.includes('log-performance') || message.includes('CORS')) {
+              event.preventDefault();
+            }
+          }
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Hidden container for Google Translate (language controlled via cookie + custom navbar button) -->
+    <div id="google_translate_element" class="hidden"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- Google Translate: English (default) and Hindi; language set via cookie from navbar Eng/Hindi button -->
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        try {
+          new google.translate.TranslateElement(
+            { pageLanguage: 'en', includedLanguages: 'en,hi' },
+            'google_translate_element'
+          );
+        } catch (e) {
+          console.warn('Google Translate init:', e);
+        }
+      }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async defer></script>
+  </body>
+</html>
